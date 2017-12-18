@@ -21,10 +21,10 @@ class AudioAnalyser
 {
 public:
 
-	double rms(void *inputBuffer, int inputSize, int typeRMS, int factor);
-	void scaling(void *vector, int vectorSize, double factor, bool multDiv);
-	void window(void *vector, int vectorSize);
-	void convert2DB(void *inputVector, void *outputVector, int vectorSize);
+	void scaling(void *vector, int vectorSize, double factor, bool multDiv); // TO ERASE
+	void window(void *vector, int vectorSize); // TO ERASE
+	void scalingandwindow(void *vector, int vectorSize);
+  	void equalising(void *inputBuffer, int inputSize);	
 };
 
 #endif

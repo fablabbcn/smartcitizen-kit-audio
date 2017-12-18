@@ -46,7 +46,7 @@ bool FFTAnalyser::configure(AudioInI2S& input){
   _spectrumBufferDB = calloc(_fftSize/2, sizeof(q31_t));
 
   //Free all buffers in case of bad allocation
-  if (_sampleBuffer == NULL || _fftBuffer == NULL || _spectrumBuffer == NULL) {
+  if (_sampleBuffer == NULL || _fftBuffer == NULL || _spectrumBuffer == NULL || _spectrumBufferDB == NULL) {
 
     if (_sampleBuffer) {
       free(_sampleBuffer);
@@ -62,6 +62,12 @@ bool FFTAnalyser::configure(AudioInI2S& input){
       free(_spectrumBuffer);
       _spectrumBuffer = NULL;
     }
+
+    if (_spectrumBufferDB) {
+      free(_spectrumBufferDB);
+      _spectrumBufferDB = NULL;
+    }
+    
     return false;
   }
   return true;
@@ -73,14 +79,13 @@ double FFTAnalyser::sensorRead(int spectrum[]){
     uint32_t time_after = micros();
 
     // Downscale the sample buffer for proper functioning
-    scaling(_sampleBuffer, _bufferSize, CONST_FACTOR, false);
-
-    // Apply Hann Window
-    window(_sampleBuffer,_bufferSize);
+    scalingandwindow(_sampleBuffer, _bufferSize);
+    // SerialUSB.println(micros()-time_after);
   
     // FFT - EQUALIZATION and WEIGHTING
     fft(_sampleBuffer, _spectrumBuffer, _fftSize);
     equalising(_spectrumBuffer, _fftSize/2);
+    // SerialUSB.println(micros()-time_after);
 
     switch (_weighting_type) {
 
@@ -88,19 +93,19 @@ double FFTAnalyser::sensorRead(int spectrum[]){
       case C_WEIGHTING:
         weighting(_spectrumBuffer, _fftSize/2);
         _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
-        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2);
+        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
         memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
         break;
 
       case Z_WEIGHTING:
         _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
-        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2);
+        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
         memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
         break;
     }
 
     _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
-    SerialUSB.println(micros()-time_after);
+    // SerialUSB.println(micros()-time_after);
 
     return _rmsSpecB;
   } else {
@@ -113,12 +118,9 @@ double FFTAnalyser::sensorRead(){
   if (audioInI2SObject.readBuffer(_sampleBuffer,_bufferSize)){
     uint32_t time_after = micros();
 
-    // Downscale the sample buffer for proper functioning
-    scaling(_sampleBuffer, _bufferSize, CONST_FACTOR, false);
+    // Apply Hann window and downscale by CONST_FACTOR
+    scalingandwindow(_sampleBuffer, _bufferSize);
 
-    // Apply Hann Window
-    window(_sampleBuffer,_bufferSize);
-  
     // FFT - EQUALIZATION and WEIGHTING
     fft(_sampleBuffer, _spectrumBuffer, _fftSize);
     equalising(_spectrumBuffer, _fftSize/2);
@@ -137,7 +139,7 @@ double FFTAnalyser::sensorRead(){
     }
   
     _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
-    SerialUSB.println(micros()-time_after);
+    // SerialUSB.println(micros()-time_after);
   }
   return _rmsSpecB;
 }
@@ -169,16 +171,20 @@ void FFTAnalyser::fft(void *_inputBuffer, void* _outputBuffer, int _fftBufferSiz
   }
 }
 
-void FFTAnalyser::equalising(void *inputBuffer, int inputSize){
-  //Deconvolution of the spectrumBuffer by division of the microphone frequency response
+void FFTAnalyser::convert2DB(void *inputVector, void *outputVector, int vectorSize, int factor){
+    const q31_t* _vect = (const q31_t*) inputVector;
+    q31_t* _vectDB = (q31_t*) outputVector;
 
-  q31_t* spBE = (q31_t*)inputBuffer;
-
-  for (int i = 0; i < inputSize; i +=8) {
-    double equalfactor = EQUALTAB[i];
-    *spBE /= equalfactor;
-    spBE++;
-  }
+    for (int i = 0; i<vectorSize;i++){
+      if (*_vect>0){ 
+        *_vectDB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2) * (*_vect) * factor));
+        if (*_vectDB < 0 ) *_vectDB = 0;      
+      } else {
+        *_vectDB = 0;
+      }
+      _vect++;
+      _vectDB++;
+    }
 }
 
 void FFTAnalyser::weighting(void *inputBuffer, int inputSize){
@@ -186,7 +192,7 @@ void FFTAnalyser::weighting(void *inputBuffer, int inputSize){
   q31_t* spB = (q31_t*)inputBuffer;
   double weighingfactor = 0;
   
-  for (int i = 0; i < inputSize; i +=8) {
+  for (int i = 0; i < inputSize; i ++) {
     
     //Apply weighting
     switch (_weighting_type) {
@@ -204,3 +210,28 @@ void FFTAnalyser::weighting(void *inputBuffer, int inputSize){
     spB++;
   }
 }
+
+double FFTAnalyser::rms(void *inputBuffer, int inputSize, int typeRMS, int FACTOR){ 
+  //typeRMS = 1 if time domain -- typeRMS = 2 if spectrum domain
+  double _rmsOut = 0;
+  const q31_t* _pBuffer = (const q31_t*) inputBuffer; 
+ 
+  for (int i = 0; i < inputSize; i ++) { 
+    _rmsOut += (*_pBuffer) * (*_pBuffer); 
+    _pBuffer++; 
+  } 
+  _rmsOut = sqrt(_rmsOut/inputSize); 
+  
+  switch (typeRMS) {
+    case 1: //TIME DOMAIN SIGNAL
+      _rmsOut = _rmsOut * 1/RMS_HANN* FACTOR; 
+      break;
+    case 2: //SPECTRUM IN FREQ DOMAIN
+      _rmsOut = _rmsOut * 1/RMS_HANN * FACTOR * sqrt(inputSize) / sqrt(2); 
+      break;
+    case 3:
+      _rmsOut = _rmsOut * FACTOR; 
+  }
+  
+  return _rmsOut;
+} 

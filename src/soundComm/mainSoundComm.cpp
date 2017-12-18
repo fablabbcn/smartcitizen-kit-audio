@@ -12,25 +12,36 @@ Circuit:
 */
 
 #include "AudioAnalyser.h"
-#include "FFTAnalyser.h"
+#include "AFSKAnalyser.h"
 #include "AudioInI2S.h"
 
 ///// FFT Parameters
-const int fftSize = 512;
+const int fftSize = 128;
 const int bitsPerSample = 32;
 const int channels = 2;
-const int bufferSize = 512;
-const int sampleRate = 44100;
+const int bufferSize = 256;
+const int sampleRate = 20000;
 
 ///// OUTPUT
-int spectrum[fftSize/2];
-double resultdB = 0;
-// int timer = 0; // Use this timer if you want to test some "time-spacing" between sensor readings
+const int signalSize = 2;
+int signal[signalSize];
+
+// CARRIER FREQUENCIES VECTOR 
+int timer = 0;
+const int carrierFreqSize = 2;
+int carrierFreq[carrierFreqSize] = {5000, 8000};
+int minDeltaFreq = 500;
 
 ///// DEFINE ANALYSER
-FFTAnalyser fftAnalyser(bufferSize, fftSize, A_WEIGHTING);
+AFSKAnalyser afskAnalyser(bufferSize, fftSize, signalSize);
 
 void setup() {
+
+    while (timer < 30000000){
+        timer++;
+    }
+    timer = 0;
+
 	// Open SerialUSB communications
 	SerialUSB.begin(115200);
 
@@ -42,7 +53,7 @@ void setup() {
         SerialUSB.println("Failed to init I2S");
     }
 
-    if(!fftAnalyser.configure(audioInI2SObject)){
+    if(!afskAnalyser.configure(audioInI2SObject, carrierFreq, carrierFreqSize, minDeltaFreq)){
         SerialUSB.println("Failed to init Analyser");
     }
 
@@ -55,6 +66,7 @@ uint32_t FreeRamMem() {
     uint32_t heapTop;
 
     // Current position of the stack
+
     stackTop = (uint32_t) &stackTop;
 
     // Current position of heap
@@ -69,36 +81,20 @@ uint32_t FreeRamMem() {
 void loop() {
 
     //// Use this timer if you want to test some "time-spacing" between sensor readings
-    // while (timer < 30000){
+    // while (timer < 30000000){
     //     timer++;
     // }
     // timer = 0;
 
-    //// READ RMS AND SPECTRUM
-	resultdB = fftAnalyser.sensorRead(spectrum);
-    //// READ ONLY RMS
-    // resultdB = fftAnalyser.sensorRead();
+    //// READ WORD
+    afskAnalyser.signalGet(signal);
 
     //// Make the LED blink
     digitalWrite(LED_BUILTIN, HIGH);
     delay(15);                  
     digitalWrite(LED_BUILTIN, LOW);
-    delay(15);                       
-    
-    //// Print out the spectrum
-    SerialUSB.println("Buffer Results (arduino)");    
-    for (int i = 0; i < fftSize/2; i++) {
-        SerialUSB.print((i * sampleRate) / fftSize);
-        SerialUSB.print("\t");
-        SerialUSB.print(spectrum[i]);
-        SerialUSB.println("");
-    }
+    delay(15);         
 
-    SerialUSB.println("--");
-
-    // Print out the RMS dB results
-    SerialUSB.println(resultdB);
-    SerialUSB.println(FreeRamMem());
-    SerialUSB.println("--");
+    // SerialUSB.println("FreeRamMem\t" + String(FreeRamMem()));              
 
 }

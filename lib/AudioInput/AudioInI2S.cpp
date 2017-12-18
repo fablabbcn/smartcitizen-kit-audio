@@ -1,6 +1,7 @@
 #include "AudioInI2S.h"
 
-AudioInI2S::AudioInI2S()
+AudioInI2S::AudioInI2S() :
+  _sampleRate(-1)
 {
 }
 
@@ -13,6 +14,8 @@ bool AudioInI2S::begin(long sampleRate, int bitsPerSample)
   if (!I2S.begin(I2S_PHILIPS_MODE, sampleRate, bitsPerSample)) {
     return 0;
   }
+
+  _sampleRate = sampleRate;
 
   //Initialisation
   int _delay = 263000;
@@ -27,6 +30,10 @@ bool AudioInI2S::begin(long sampleRate, int bitsPerSample)
 void AudioInI2S::end()
 {
   I2S.end();
+}
+
+int AudioInI2S::sampleRate() {
+  return _sampleRate;
 }
 
 

@@ -13,6 +13,10 @@ public:
   bool begin(long sampleRate, int bitsPerSample);
   void end();
   bool readBuffer(void* buffer, int bufferReadSize);
+  int sampleRate();
+
+private:
+	int _sampleRate;
 };
 
 extern AudioInI2S audioInI2SObject;

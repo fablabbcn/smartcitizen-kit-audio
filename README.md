@@ -16,7 +16,7 @@ It's intented to perform **audio analysis** on a SAMD21 processor of a **MEMS I2
 
 ### A-C Weighting functions
 
-There is an octave script in /OCTAVE/WEIGHTING that generates a custom weighting table as specifies in the actual legislation. It outputs a 
+There is an octave script in /OCTAVE/WEIGHTING that generates a custom weighting table as specifies in the actual legislation. It outputs a csv file that can be used for LUT generation.
 
 ### Communication through sound
 
