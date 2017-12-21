@@ -4,20 +4,21 @@ FFTAnalyser::FFTAnalyser(int bufferSize, int fftSize, WeightingType weighting_ty
   //BUFFER Sizes
   _fftSize(fftSize),
   _bufferSize(bufferSize),
+  _bufferIndex(-1),
   //BUFFERs
   _sampleBuffer(NULL),
+  _sampleRate(NULL),
+  _bitsPerSample(NULL),
   _fftBuffer(NULL),
   _spectrumBuffer(NULL),
   _spectrumBufferDB(NULL),
   //RMS
   _rmsSpecB(0),
   //EXTRAS
-  _weighting_type(weighting_type)
-{
+  _weighting_type(weighting_type){
 }
 
-FFTAnalyser::~FFTAnalyser()
-{
+FFTAnalyser::~FFTAnalyser() {
   if (_sampleBuffer){
     free(_sampleBuffer);
   }
@@ -30,17 +31,28 @@ FFTAnalyser::~FFTAnalyser()
     free(_spectrumBuffer);
   }
 
+  if (_spectrumBufferDB) {
+    free(_spectrumBufferDB);
+  }
 }
 
-bool FFTAnalyser::configure(AudioInI2S& input){
+bool FFTAnalyser::configure(int sampleRate, int bitsPerSample){
 
-  //Initialize fft
+  _sampleRate = sampleRate;
+  _bitsPerSample = bitsPerSample;
+
+  //Initialise I2S
+  begin(_sampleRate, _bitsPerSample);
+
+  //Initialise fft
   if (ARM_MATH_SUCCESS != arm_rfft_init_q31(&_S31, _fftSize, 0, 1)) {
     return false;
   }
+
   //Allocate time buffer
   _sampleBuffer = calloc(_bufferSize, sizeof(q31_t));
   _fftBuffer = calloc(_fftSize, sizeof(q31_t));
+  
   //Allocate frequency buffers
   _spectrumBuffer = calloc(_fftSize/2, sizeof(q31_t));
   _spectrumBufferDB = calloc(_fftSize/2, sizeof(q31_t));
@@ -73,74 +85,95 @@ bool FFTAnalyser::configure(AudioInI2S& input){
   return true;
 }
 
-double FFTAnalyser::sensorRead(int spectrum[]){
+bool FFTAnalyser::bufferFilled() {
 
-  if (audioInI2SObject.readBuffer(_sampleBuffer,_bufferSize)){
-    uint32_t time_after = micros();
-
-    // Downscale the sample buffer for proper functioning
-    scalingandwindow(_sampleBuffer, _bufferSize);
-    // SerialUSB.println(micros()-time_after);
-  
-    // FFT - EQUALIZATION and WEIGHTING
-    fft(_sampleBuffer, _spectrumBuffer, _fftSize);
-    equalising(_spectrumBuffer, _fftSize/2);
-    // SerialUSB.println(micros()-time_after);
-
-    switch (_weighting_type) {
-
-      case A_WEIGHTING:
-      case C_WEIGHTING:
-        weighting(_spectrumBuffer, _fftSize/2);
-        _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
-        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
-        memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
-        break;
-
-      case Z_WEIGHTING:
-        _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
-        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
-        memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
-        break;
+  int32_t _sample = 0;
+  int32_t* _buff = (int32_t*) _sampleBuffer;
+ 
+  while(_bufferIndex < _bufferSize) {
+    _sample = I2S.read();
+    if (_sample) {
+      // SerialUSB.println(_sample);
+      _buff[_bufferIndex] = _sample>>7;
+      _bufferIndex++;
+    } else {
+      return false;
     }
-
-    _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
-    // SerialUSB.println(micros()-time_after);
-
-    return _rmsSpecB;
-  } else {
-    return 0;
   }
+
+  return true;
 }
 
-double FFTAnalyser::sensorRead(){
+float FFTAnalyser::getReading(int spectrum[]){
 
-  if (audioInI2SObject.readBuffer(_sampleBuffer,_bufferSize)){
-    uint32_t time_after = micros();
+  uint32_t time_after = micros();
 
-    // Apply Hann window and downscale by CONST_FACTOR
-    scalingandwindow(_sampleBuffer, _bufferSize);
+  // Downscale the sample buffer for proper functioning
+  scalingandwindow(_sampleBuffer, _bufferSize);
+  // SerialUSB.println(micros()-time_after);
 
-    // FFT - EQUALIZATION and WEIGHTING
-    fft(_sampleBuffer, _spectrumBuffer, _fftSize);
-    equalising(_spectrumBuffer, _fftSize/2);
+  // fft
+  fft(_sampleBuffer, _spectrumBuffer, _fftSize);
 
-    switch (_weighting_type) {
+  // Equalise
+  equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
+  // SerialUSB.println(micros()-time_after);
 
-      case A_WEIGHTING:
-      case C_WEIGHTING:
-        weighting(_spectrumBuffer, _fftSize/2);
-        _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
-        break;
+  // Weighting
+  switch (_weighting_type) {
 
-      case Z_WEIGHTING:
-        _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
-        break;
-    }
-  
-    _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
-    // SerialUSB.println(micros()-time_after);
+    case A_WEIGHTING:
+    case C_WEIGHTING:
+      weighting(_spectrumBuffer, _fftSize/2);
+      _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
+      convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
+      memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
+      break;
+
+    case Z_WEIGHTING:
+      _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
+      convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
+      memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
+      break;
   }
+
+  _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
+  // SerialUSB.println(micros()-time_after);
+
+  _bufferIndex = 0;
+  return _rmsSpecB;
+}
+
+float FFTAnalyser::getReading(){
+
+  // uint32_t time_after = micros();
+
+  // Apply Hann window and downscale by CONST_FACTOR
+  scalingandwindow(_sampleBuffer, _bufferSize);
+
+  // fft
+  fft(_sampleBuffer, _spectrumBuffer, _fftSize);
+
+  // Equalise
+  equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
+
+  // Weighting
+  switch (_weighting_type) {
+
+    case A_WEIGHTING:
+    case C_WEIGHTING:
+      weighting(_spectrumBuffer, _fftSize/2);
+      break;
+    case Z_WEIGHTING:
+      break;
+  }
+
+  _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
+  _rmsSpecB = (float) (FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB)));
+  // SerialUSB.println(micros()-time_after);
+  
+  _bufferIndex = 0;
+
   return _rmsSpecB;
 }
 

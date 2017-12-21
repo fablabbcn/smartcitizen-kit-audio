@@ -6,8 +6,6 @@
 #define ARM_MATH_CM0PLUS
 #include <arm_math.h>
 
-#include "../AudioInput/AudioInI2S.h"
-
 #include "AudioAnalyser.h"
 #include "ConstantsSound.h"
 
@@ -16,28 +14,33 @@ class AFSKAnalyser : public AudioAnalyser
 {
 public:
 
-  AFSKAnalyser(int bufferSize, int fftSize, int signalSize); //
+  AFSKAnalyser(int bufferSize, int fftSize); //
   ~AFSKAnalyser(); //
 
-  void signalGet(void *signal);
-  bool configure(AudioInI2S& input, int carrierFreq[], int carrierFreqSize, int deltaFreq);
+  unsigned char signalGet();
+  bool configure(int sampleRate, int bitsPerSample, int carrierFreq[], int carrierFreqSize);
+
+  // String results
 
 private:
+
+  bool bufferFilled();
   void fft(void*inputBuffer, void* outputBuffer, int fftBufferSize);    
   unsigned char freqDetect(void* refBuffer, void* pointBuffer, int carrierFreqSize);
   bool isPeak (const void* inputBuffer, int index, int windowSize, double stdDev);
-  // void normalEquation(int vectorLength, float window[], void* ordinate, void* slope);
+  
+  //THIS COULD GO TO THE MATH LIBRARY
   void normalEquation(int vectorLength, float window[], void* slope);
   double standardDeviation(void* inputBuffer, int bufferSize);
   double average(void* inputBuffer, int bufferSize);
-
   
   //BUFFER Sizes
   int _fftSize;
   int _bufferSize; //Already usable bufferSize
+  int _bufferIndex;
   //ASFK
-  int _signalSize;
   int _sampleRate;
+  int _bitsPerSample;
   int _carrierFreqSize;
   int _windowSize;
   // float _ordRight;
@@ -52,6 +55,9 @@ private:
   void* _windowBuffer;
   void* _windowBufferFloat;
   void* _signalBuffer;
+
+  //TEMP
+  long _timePostBuffer;
   //FFT
   arm_rfft_instance_q31 _S31;
 };

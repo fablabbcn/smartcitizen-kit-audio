@@ -6,8 +6,6 @@
 #define ARM_MATH_CM0PLUS
 #include <arm_math.h>
 
-#include "../AudioInput/AudioInI2S.h"
-
 #include "AudioAnalyser.h"
 #include "ConstantsSound.h"
 
@@ -16,12 +14,13 @@ class FFTAnalyser : public AudioAnalyser
 {
 public:
 
-  FFTAnalyser(int bufferSize, int fftSize, WeightingType weighting_type); //
-  ~FFTAnalyser(); //
+  FFTAnalyser(int bufferSize, int fftSize, WeightingType weighting_type);
+  ~FFTAnalyser();
 
-  double sensorRead(int spectrum[]);
-  double sensorRead();
-  bool configure(AudioInI2S& input);
+  bool configure(int sampleRate, int bitsPerSample);
+  float getReading(int spectrum[]);
+  float getReading();
+  bool bufferFilled();
 
 private:
 
@@ -33,9 +32,11 @@ private:
   //BUFFER Sizes
   int _fftSize;
   int _bufferSize; //Already usable bufferSize
+  int _bufferIndex;
   WeightingType _weighting_type;
-  //RMS Results
-  double _rmsSpecB;
+  int _sampleRate;
+  int _bitsPerSample;
+  float _rmsSpecB;
   //BUFFERS
   void* _sampleBuffer;
   void* _fftBuffer;
@@ -43,6 +44,7 @@ private:
   void* _spectrumBufferDB;
   //FFT
   arm_rfft_instance_q31 _S31;
+
 };
 
 #endif
