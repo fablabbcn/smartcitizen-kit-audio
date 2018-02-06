@@ -14,7 +14,7 @@ Circuit:
 #include "AFSKAnalyser.h"
 
 ///// FFT Parameters
-const int fftSize = 256; // CAREFUL IF YOU MODIFY IT!
+const int fftSize = 512; // CAREFUL IF YOU MODIFY IT!
 const int bitsPerSample = 32;
 const int channels = 2;
 const int bufferSize = 512;
@@ -26,28 +26,29 @@ unsigned char signal;
 // CARRIER FREQUENCIES VECTOR 
 int timer = 0;
 const int carrierFreqSize = 8;
-int carrierFreq[carrierFreqSize] = {3000,4000,5000,6000,7000,8000,9000,10000};
+int carrierFreq[carrierFreqSize] = {3000,4100,5200,6300,7400,8500,9600,10700};
 
 ///// DEFINE ANALYSER
 AFSKAnalyser afskAnalyser(bufferSize, fftSize);
 
 void setup() {
 
-    // while (timer < 30000000){
-    //     timer++;
-    // }
-    // timer = 0;
+    // FOR SCK
+    pinMode(3, OUTPUT);
+    digitalWrite(3, HIGH);
+    pinMode(4, OUTPUT);
+    digitalWrite(4, HIGH);
 
     // BLINK LED
-    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(6, OUTPUT); //ROJO
+    pinMode(12, OUTPUT); //VERDE
+    pinMode(10, OUTPUT); //BLUE
+    digitalWrite(6, HIGH);
+    digitalWrite(12, HIGH);
+    digitalWrite(10, HIGH);
 
  	// Configure Analysis
     afskAnalyser.configure(sampleRate, bitsPerSample, carrierFreq, carrierFreqSize);
-
-    // while (timer < 30000000){
-    //     timer++;
-    // }
-    // timer = 0;
 
 }
 

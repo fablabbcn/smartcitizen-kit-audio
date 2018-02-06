@@ -44,7 +44,6 @@ private:
   void* _spectrumBufferDB;
   //FFT
   arm_rfft_instance_q31 _S31;
-
 };
 
 #endif

@@ -61,11 +61,12 @@ bool AFSKAnalyser::configure(int sampleRate, int bitsPerSample, int carrierFreq[
     return false;
   }
 
-  // double _freqResolution = _sampleRate/_fftSize;
-  // _windowSize = round(_minDeltaFreq/_freqResolution);
+  double _freqResolution = _sampleRate/_fftSize;
+  int minDeltaFreq = carrierFreq[1]-carrierFreq[0];
+  //_windowSize = round(minDeltaFreq/_freqResolution);
 
-  _windowSize = 10;
-  // SerialUSB.println("windowSize\t" + String(_windowSize));
+  _windowSize = 8;
+  SerialUSB.println("windowSize\t" + String(_windowSize));
 
   //Allocate frequency index pointers
   _pointFreq = calloc(_carrierFreqSize, sizeof(int32_t)); // Index frequency
@@ -81,10 +82,12 @@ bool AFSKAnalyser::configure(int sampleRate, int bitsPerSample, int carrierFreq[
 
   // Determine the index of carrierFrequencies with respect to fftSize Vector and SampleRate
   int32_t* ptFreq = (int32_t*) _pointFreq;
+  float checkCarrierFreq = 0;
 
   for (int i = 0; i < _carrierFreqSize; i++) {
     ptFreq[i] = round(_fftSize/2*carrierFreq[i])/(_sampleRate/2); 
-    // SerialUSB.println(ptFreq[i]);
+    checkCarrierFreq = ptFreq[i]*_sampleRate/2/(_fftSize/2);
+    SerialUSB.println(String(ptFreq[i]) + '\t'+ String(checkCarrierFreq));
   }
 
   //Free all buffers in case of bad allocation
@@ -111,7 +114,7 @@ bool AFSKAnalyser::configure(int sampleRate, int bitsPerSample, int carrierFreq[
 }
 
 bool AFSKAnalyser::bufferFilled() {
-
+    
   int32_t _sample = 0;
   int32_t* _buff = (int32_t*) _sampleBuffer;
 
@@ -137,7 +140,7 @@ unsigned char AFSKAnalyser::signalGet(){
     // SerialUSB.println(micros()-_timePostBuffer);
     
     // Downscale the sample buffer for proper functioning and apply Hann window
-    scalingandwindow(_sampleBuffer, _bufferSize);
+    // scalingandwindow(_sampleBuffer, _bufferSize);
     // SerialUSB.println(micros()-_timePostBuffer);
     
     // fft 
@@ -156,10 +159,10 @@ unsigned char AFSKAnalyser::signalGet(){
     _bufferIndex = 0;
 
     //// Make the LED blink
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(5);                  
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(5);    
+    digitalWrite(6, LOW); //ROJO
+    delay(5);
+    //// Make the LED blink
+    digitalWrite(6, HIGH); //ROJO
 
   }
 
@@ -233,7 +236,7 @@ bool AFSKAnalyser::isPeak (const void* inputBuffer, int index, int windowSize, d
 
   bool _isPeak = false;
 
-  //Determine the indexes without counting the middle one
+  // Determine the indexes without counting the middle one
   int _indexLeft = max(0,index-windowSize/2);
   int _indexRight = min(_fftSize/2, index+windowSize/2);
 

@@ -2,3 +2,8 @@
 .pioenvs
 .pioenvs\
 .piolibdeps
+python_plot.py
+*.txt
+logs\
+PYTHON\
+lib\I2S_SCK

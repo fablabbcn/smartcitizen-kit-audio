@@ -89,15 +89,17 @@ bool FFTAnalyser::bufferFilled() {
 
   int32_t _sample = 0;
   int32_t* _buff = (int32_t*) _sampleBuffer;
- 
+
   while(_bufferIndex < _bufferSize) {
-    _sample = I2S.read();
-    if (_sample) {
-      // SerialUSB.println(_sample);
+
+    I2S.read(&_sample, _bitsPerSample/8); 
+
+    if (_sample == 0) {
+
+      return false;
+    } else {
       _buff[_bufferIndex] = _sample>>7;
       _bufferIndex++;
-    } else {
-      return false;
     }
   }
 
@@ -145,8 +147,6 @@ float FFTAnalyser::getReading(int spectrum[]){
 }
 
 float FFTAnalyser::getReading(){
-
-  // uint32_t time_after = micros();
 
   // Apply Hann window and downscale by CONST_FACTOR
   scalingandwindow(_sampleBuffer, _bufferSize);
