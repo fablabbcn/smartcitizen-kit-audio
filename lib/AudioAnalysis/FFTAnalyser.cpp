@@ -112,14 +112,12 @@ float FFTAnalyser::getReading(int spectrum[]){
 
   // Downscale the sample buffer for proper functioning
   scalingandwindow(_sampleBuffer, _bufferSize);
-  // SerialUSB.println(micros()-time_after);
 
   // fft
   fft(_sampleBuffer, _spectrumBuffer, _fftSize);
 
   // Equalise
   equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
-  // SerialUSB.println(micros()-time_after);
 
   // Weighting
   switch (_weighting_type) {
@@ -140,7 +138,6 @@ float FFTAnalyser::getReading(int spectrum[]){
   }
 
   _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
-  // SerialUSB.println(micros()-time_after);
 
   _bufferIndex = 0;
   return _rmsSpecB;
@@ -170,7 +167,6 @@ float FFTAnalyser::getReading(){
 
   _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
   _rmsSpecB = (float) (FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB)));
-  // SerialUSB.println(micros()-time_after);
   
   _bufferIndex = 0;
 

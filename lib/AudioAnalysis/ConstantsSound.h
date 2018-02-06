@@ -46,5 +46,4 @@ const int EQUALTABSIZE = 256;
 const int EQUALTABSAMPLERATE = 44100;
 
 ///// AFSK
-
 const double THRESHOLD_DETECT = 40;

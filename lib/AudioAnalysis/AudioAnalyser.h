@@ -1,7 +1,7 @@
 #ifndef _AUDIO_ANALYZER_H_INCLUDED
 #define _AUDIO_ANALYZER_H_INCLUDED
 
-#include <I2S_SCK.h>
+#include <I2S.h>
 #include <Arduino.h>
 
 #define ARM_MATH_CM0PLUS

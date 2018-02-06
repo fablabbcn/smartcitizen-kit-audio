@@ -1,15 +1,4 @@
-// This sketch is to be used with the native port of the Arduino Zero
-
-/*
-Circuit:
- * Arduino/Genuino Zero
- * ICS43432:
-   * GND connected GND
-   * 3.3V connected 3.3V
-   * WS connected to pin 0 (ALSO CALLED FS)
-   * CLK connected to pin 1 (ALSO CALLED SCK)
-   * SD connected to pin 9
-*/
+// This sketch is meant for reading audio over 
 
 #include "FFTAnalyser.h"
 
@@ -23,24 +12,24 @@ const int sampleRate = 44100;
 ///// OUTPUT
 int spectrum[fftSize/2];
 float resultdB = 0;
-int timer = 0;
 
 ///// DEFINE ANALYSER
+// Declare weighting type in the last argument. For reference below
+/*
+enum WeightingType{
+    A_WEIGHTING,
+    C_WEIGHTING,
+    Z_WEIGHTING
+*/
 FFTAnalyser fftAnalyser(bufferSize, fftSize, A_WEIGHTING);
 
 void setup() {
 
-    // FOR SCK
+    // Provisional For SCK
     pinMode(3, OUTPUT);
     digitalWrite(3, HIGH);
     pinMode(4, OUTPUT);
     digitalWrite(4, HIGH);
-
-    // //// Use this timer if you want to test some "time-spacing" between sensor readings
-    // while (timer < 30000000){
-    //     timer++;
-    // }
-    // timer = 0;
 
     // BLINK LED
     pinMode(6, OUTPUT); //ROJO
@@ -50,37 +39,24 @@ void setup() {
     digitalWrite(12, HIGH);
     digitalWrite(10, HIGH);
 
+    // Init I2S and configure fft analyser, buffers..
     fftAnalyser.configure(sampleRate, bitsPerSample);
-}
-
-uint32_t FreeRamMem() {
-    uint32_t stackTop;
-    uint32_t heapTop;
-
-    // Current position of the stack
-    stackTop = (uint32_t) &stackTop;
-
-    // Current position of heap
-    void* hTop = malloc(1);
-    heapTop = (uint32_t) hTop;
-    free(hTop);
-
-    // The difference is the free, available ram
-    return stackTop - heapTop;
 }
 
 void loop() {
 
     if (fftAnalyser.bufferFilled()) {
 
+        // Get only dB results
         resultdB = fftAnalyser.getReading();
+        // Get dB and specturm
+        // resultdB = fftAnalyser.getReading(spectrum);
         //// Make the LED blink
-        digitalWrite(6, LOW); // TURN IT ON
+        digitalWrite(12, LOW); // TURN IT ON
         delay(20);          
-        digitalWrite(6, HIGH); // TURN IT OFF
+        digitalWrite(12, HIGH); // TURN IT OFF
         delay(20);   
         SerialUSB.println(resultdB); 
-
 
         // Print out the spectrum
         // SerialUSB.println("Buffer Results (arduino)");    
@@ -91,9 +67,6 @@ void loop() {
         //     SerialUSB.println("");
         // }
         // SerialUSB.println("--");
-    }
 
-    // SerialUSB.println(FreeRamMem());
-    // SerialUSB.println("**");
-
+    } 
 }
