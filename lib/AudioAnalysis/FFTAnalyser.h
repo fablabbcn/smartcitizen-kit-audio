@@ -17,9 +17,10 @@ public:
   FFTAnalyser();
   ~FFTAnalyser();
 
-  bool configure(int bufferSize, int fftSize, WeightingType weightingType);
+  bool allocateBuffer(int bufferSize, int fftSize, WeightingType weightingType);
   bool initI2S(int sampleRate, int bitsPerSample);
-  bool terminate();
+  bool initFFT(int fftSize);
+  bool terminateBuffer();
   float getReading(int spectrum[]);
   float getReading();
   bool bufferFilled();

@@ -20,6 +20,10 @@ const int channels = 2;
 const int bufferSize = 512;
 const int sampleRate = 44100;
 
+#define RED 6
+#define GREEN 12
+#define BLUE 10
+
 ///// OUTPUT
 int spectrum[fftSize/2];
 float resultdB = 0;
@@ -45,8 +49,7 @@ public:
 
     void init(){
         _fftAnalyser.initI2S(_sampleRate,32);
-        _fftAnalyser.configure(_bufferSize, _fftSize, _weightingType);     
-        SerialUSB.println(FreeRamMem());
+        _fftAnalyser.initFFT(_fftSize);
     }
     void end(){
         // Rien de rien
@@ -54,14 +57,19 @@ public:
 
     float getReading(){
         // SerialUSB.println("GetReading");
+        if(_bufferTerminated){
+            _fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType);
+            _bufferTerminated = false;
+        }
 
         float _noise = 0;
         // Modify it so that it doesn't come back before it get the data
         if (_fftAnalyser.bufferFilled()) {
             _noise = _fftAnalyser.getReading();
-            SerialUSB.println("bufferFilled");
-            SerialUSB.println(FreeRamMem());
-            // _fftAnalyser->terminate();
+            if (!_bufferTerminated) {
+                _fftAnalyser.terminateBuffer();
+                _bufferTerminated = true;            
+            }
         }
         return _noise;
     } 
@@ -70,31 +78,27 @@ private:
     int _bufferSize;
     int _fftSize;
     int _sampleRate;
-
+    bool _bufferTerminated = true;
     WeightingType _weightingType;
-
-    uint32_t FreeRamMem() {
-        uint32_t stackTop;
-        uint32_t heapTop;
-
-        // Current position of the stack
-        stackTop = (uint32_t) &stackTop;
-
-        // Current position of heap
-        void* hTop = malloc(1);
-        heapTop = (uint32_t) hTop;
-        free(hTop);
-
-        // The difference is the free, available ram
-        return stackTop - heapTop;
-    }
 };
 
-// NoiseClass noisedBA(sampleRate, bufferSize, fftSize, A_WEIGHTING);
-// NoiseClass noisedBC(sampleRate, bufferSize, fftSize, C_WEIGHTING);
-// NoiseClass noisedBZ(sampleRate, bufferSize, fftSize, Z_WEIGHTING);
+NoiseClass noisedBA(sampleRate, bufferSize, fftSize, A_WEIGHTING);
 
-NoiseClass noise(sampleRate, bufferSize, fftSize, A_WEIGHTING);
+uint32_t FreeRamMem() {
+    uint32_t stackTop;
+    uint32_t heapTop;
+
+    // Current position of the stack
+    stackTop = (uint32_t) &stackTop;
+
+    // Current position of heap
+    void* hTop = malloc(1);
+    heapTop = (uint32_t) hTop;
+    free(hTop);
+
+    // The difference is the free, available ram
+    return stackTop - heapTop;
+}
 
 void setup() {
     // Provisional For SCK
@@ -104,37 +108,35 @@ void setup() {
     digitalWrite(4, HIGH);
 
     // BLINK LED
-    pinMode(6, OUTPUT); //ROJO
-    pinMode(12, OUTPUT); //VERDE
-    pinMode(10, OUTPUT); //BLUE
-    digitalWrite(6, HIGH);
-    digitalWrite(12, HIGH);
-    digitalWrite(10, HIGH);
+    pinMode(RED, OUTPUT); //ROJO
+    pinMode(GREEN, OUTPUT); //VERDE
+    pinMode(BLUE, OUTPUT); //BLUE
+    digitalWrite(RED, HIGH);
+    digitalWrite(GREEN, HIGH);
+    digitalWrite(BLUE, HIGH);
 
     delay(2000);
 
     // SerialUSB.println(FreeRamMem());
-    noise.init();
+    noisedBA.init();
+    SerialUSB.println(FreeRamMem());
 }
 
 void loop() {
     
     // SerialUSB.println(FreeRamMem());
-    float resultDB = noise.getReading();
-    SerialUSB.println(resultDB);
+    float resultdBA = noisedBA.getReading();
 
-    // Make the led blink
-    digitalWrite(6, HIGH);
-    digitalWrite(12, HIGH);
-    digitalWrite(10, HIGH);
-    delay(20);
-    digitalWrite(6, HIGH);
-    digitalWrite(12, LOW);
-    digitalWrite(10, HIGH);
-    delay(20);
-    
+    if (resultdBA) {
+        SerialUSB.println(resultdBA);
+        SerialUSB.println(FreeRamMem());
+        digitalWrite(GREEN, LOW);
+        delay(20);
+        digitalWrite(GREEN, HIGH);
+        delay(20);
+    }
+
     // SerialUSB.println(FreeRamMem());
-    // noise->end();
 
     // Do something else
     // while (timer<200000) {

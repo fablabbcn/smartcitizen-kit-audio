@@ -38,31 +38,33 @@ FFTAnalyser::~FFTAnalyser() {
 }
 
 bool FFTAnalyser::initI2S(int sampleRate, int bitsPerSample){
-
   _sampleRate = sampleRate;
   _bitsPerSample = bitsPerSample;
 
   //Initialise I2S
   bool I2SbeginOK = begin(_sampleRate, _bitsPerSample);
-  SerialUSB.println("I2S begin OK");
+  SerialUSB.println("I2S begin");
   SerialUSB.println(I2SbeginOK);
   SerialUSB.println(_sampleRate);
+  SerialUSB.println(_bitsPerSample);
+  SerialUSB.println("**");
 
   return I2SbeginOK;
 }
+bool FFTAnalyser::initFFT(int fftSize){
+  //Initialise fft
+  if (ARM_MATH_SUCCESS != arm_rfft_init_q31(&_S31, fftSize, 0, 1)) {
+    return false;
+  }
+  return true;
+}
 
-bool FFTAnalyser::configure(int fftSize, int bufferSize, WeightingType weightingType){
+bool FFTAnalyser::allocateBuffer(int fftSize, int bufferSize, WeightingType weightingType){
+  // SerialUSB.println("allocateBuffer");
+
   _fftSize = fftSize;
   _bufferSize = bufferSize;
   _weightingType = weightingType;
-  SerialUSB.println(_fftSize);
-  SerialUSB.println(_bufferSize);
-  SerialUSB.println(_weightingType);
-
-  //Initialise fft
-  if (ARM_MATH_SUCCESS != arm_rfft_init_q31(&_S31, _fftSize, 0, 1)) {
-    return false;
-  }
 
   //Allocate time buffer
   _sampleBuffer = calloc(_bufferSize, sizeof(q31_t));
@@ -100,7 +102,8 @@ bool FFTAnalyser::configure(int fftSize, int bufferSize, WeightingType weighting
   return true;
 }
 
-bool FFTAnalyser::terminate(){
+bool FFTAnalyser::terminateBuffer(){
+  // SerialUSB.println("terminateBuffer");
   free(_sampleBuffer);
   free(_fftBuffer);
   free(_spectrumBuffer);
@@ -111,13 +114,12 @@ bool FFTAnalyser::bufferFilled() {
 
   int32_t _sample = 0;
   int32_t* _buff = (int32_t*) _sampleBuffer;
-  SerialUSB.println(_bufferSize);
-  SerialUSB.println(_bufferIndex);
 
   while(_bufferIndex < _bufferSize) {
     _sample = I2S.read();
+    // SerialUSB.println(_sample);
+
     if (_sample) {
-      // SerialUSB.println(_sample);
       _buff[_bufferIndex] = _sample>>7;
       _bufferIndex++;
     } else {
