@@ -1,9 +1,9 @@
 #include "FFTAnalyser.h"
 
-FFTAnalyser::FFTAnalyser(int bufferSize, int fftSize, WeightingType weighting_type) :
+FFTAnalyser::FFTAnalyser() :
   //BUFFER Sizes
-  _fftSize(fftSize),
-  _bufferSize(bufferSize),
+  _fftSize(NULL),
+  _bufferSize(NULL),
   _bufferIndex(-1),
   //BUFFERs
   _sampleBuffer(NULL),
@@ -15,7 +15,8 @@ FFTAnalyser::FFTAnalyser(int bufferSize, int fftSize, WeightingType weighting_ty
   //RMS
   _rmsSpecB(0),
   //EXTRAS
-  _weighting_type(weighting_type){
+  _weightingType(Z_WEIGHTING)
+{
 }
 
 FFTAnalyser::~FFTAnalyser() {
@@ -36,13 +37,27 @@ FFTAnalyser::~FFTAnalyser() {
   }
 }
 
-bool FFTAnalyser::configure(int sampleRate, int bitsPerSample){
+bool FFTAnalyser::initI2S(int sampleRate, int bitsPerSample){
 
   _sampleRate = sampleRate;
   _bitsPerSample = bitsPerSample;
 
   //Initialise I2S
-  begin(_sampleRate, _bitsPerSample);
+  bool I2SbeginOK = begin(_sampleRate, _bitsPerSample);
+  SerialUSB.println("I2S begin OK");
+  SerialUSB.println(I2SbeginOK);
+  SerialUSB.println(_sampleRate);
+
+  return I2SbeginOK;
+}
+
+bool FFTAnalyser::configure(int fftSize, int bufferSize, WeightingType weightingType){
+  _fftSize = fftSize;
+  _bufferSize = bufferSize;
+  _weightingType = weightingType;
+  SerialUSB.println(_fftSize);
+  SerialUSB.println(_bufferSize);
+  SerialUSB.println(_weightingType);
 
   //Initialise fft
   if (ARM_MATH_SUCCESS != arm_rfft_init_q31(&_S31, _fftSize, 0, 1)) {
@@ -85,11 +100,20 @@ bool FFTAnalyser::configure(int sampleRate, int bitsPerSample){
   return true;
 }
 
+bool FFTAnalyser::terminate(){
+  free(_sampleBuffer);
+  free(_fftBuffer);
+  free(_spectrumBuffer);
+  free(_spectrumBufferDB);
+}
+
 bool FFTAnalyser::bufferFilled() {
 
   int32_t _sample = 0;
   int32_t* _buff = (int32_t*) _sampleBuffer;
- 
+  SerialUSB.println(_bufferSize);
+  SerialUSB.println(_bufferIndex);
+
   while(_bufferIndex < _bufferSize) {
     _sample = I2S.read();
     if (_sample) {
@@ -106,8 +130,6 @@ bool FFTAnalyser::bufferFilled() {
 
 float FFTAnalyser::getReading(int spectrum[]){
 
-  uint32_t time_after = micros();
-
   // Downscale the sample buffer for proper functioning
   scalingandwindow(_sampleBuffer, _bufferSize);
   // SerialUSB.println(micros()-time_after);
@@ -120,7 +142,7 @@ float FFTAnalyser::getReading(int spectrum[]){
   // SerialUSB.println(micros()-time_after);
 
   // Weighting
-  switch (_weighting_type) {
+  switch (_weightingType) {
 
     case A_WEIGHTING:
     case C_WEIGHTING:
@@ -146,8 +168,6 @@ float FFTAnalyser::getReading(int spectrum[]){
 
 float FFTAnalyser::getReading(){
 
-  // uint32_t time_after = micros();
-
   // Apply Hann window and downscale by CONST_FACTOR
   scalingandwindow(_sampleBuffer, _bufferSize);
 
@@ -158,7 +178,7 @@ float FFTAnalyser::getReading(){
   equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
 
   // Weighting
-  switch (_weighting_type) {
+  switch (_weightingType) {
 
     case A_WEIGHTING:
     case C_WEIGHTING:
@@ -228,7 +248,7 @@ void FFTAnalyser::weighting(void *inputBuffer, int inputSize){
   for (int i = 0; i < inputSize; i ++) {
     
     //Apply weighting
-    switch (_weighting_type) {
+    switch (_weightingType) {
 
       case A_WEIGHTING: //A_WEIGHTING
         weighingfactor = A_WEIGHTINGTAB[i];

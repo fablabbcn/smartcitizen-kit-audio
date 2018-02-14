@@ -14,10 +14,12 @@ class FFTAnalyser : public AudioAnalyser
 {
 public:
 
-  FFTAnalyser(int bufferSize, int fftSize, WeightingType weighting_type);
+  FFTAnalyser();
   ~FFTAnalyser();
 
-  bool configure(int sampleRate, int bitsPerSample);
+  bool configure(int bufferSize, int fftSize, WeightingType weightingType);
+  bool initI2S(int sampleRate, int bitsPerSample);
+  bool terminate();
   float getReading(int spectrum[]);
   float getReading();
   bool bufferFilled();
@@ -33,7 +35,7 @@ private:
   int _fftSize;
   int _bufferSize; //Already usable bufferSize
   int _bufferIndex;
-  WeightingType _weighting_type;
+  WeightingType _weightingType;
   int _sampleRate;
   int _bitsPerSample;
   float _rmsSpecB;

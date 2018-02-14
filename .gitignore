@@ -1,4 +1,14 @@
 *.DS_Store
 .pioenvs
 .pioenvs\
+<<<<<<< Updated upstream
 .piolibdeps
+=======
+.piolibdeps
+python_plot.py
+*.txt
+logs\
+PYTHON\
+lib\I2S_SCK
+src\testFreeRam\*
+>>>>>>> Stashed changes
