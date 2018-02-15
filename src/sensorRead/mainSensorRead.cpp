@@ -100,19 +100,6 @@ public:
                 break;
         }
 
-        if(_bufferTerminated){
-            _fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType);
-            _bufferTerminated = false;            
-        }
-
-        // Modify it so that it doesn't come back before it get the data
-
-        _noise = _fftAnalyser.getReading();
-
-        if (_noise>0){
-            _bufferTerminated = true;    
-        }
-
         return _noise;
     } 
 
