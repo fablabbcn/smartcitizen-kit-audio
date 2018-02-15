@@ -47,30 +47,72 @@ public:
         // free(_fftAnalyser);
     }
 
-    void init(){
-        _fftAnalyser.initI2S(_sampleRate,32);
-        _fftAnalyser.initFFT(_fftSize);
+    enum NoiseState{
+        INITIAL,
+        READINGBUFFER,
+        READINGDONE,
+        ALLOCATINGBUFFER
+    };
+
+    bool init(){
+        bool _initI2SOK = _fftAnalyser.initI2S(_sampleRate,32);
+        bool _initFFTOK = _fftAnalyser.initFFT(_fftSize);
+        if (_initFFTOK && _initI2SOK){
+            return true;
+        }
+        return false;
     }
     void end(){
         // Rien de rien
     }
 
     float getReading(){
-        // SerialUSB.println("GetReading");
-        if(_bufferTerminated){
-            _fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType);
-            _bufferTerminated = false;
+        float _noise = 0;
+
+        switch (_noiseState) {
+            case INITIAL:
+
+                if (init()){
+                    _noiseState = ALLOCATINGBUFFER;
+                }
+                break;
+
+            case ALLOCATINGBUFFER:
+
+                if(_fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType)){
+                    _noiseState = READINGBUFFER;
+                }
+                break;
+
+            case READINGBUFFER:
+
+                _noise = _fftAnalyser.getReading();
+                if (_noise>0){
+                    _noiseState = READINGDONE;
+                }
+                break;
+
+            case READINGDONE:
+
+                if(_fftAnalyser.terminateBuffer()){
+                    _noiseState = ALLOCATINGBUFFER;
+                }
+                break;
         }
 
-        float _noise = 0;
-        // Modify it so that it doesn't come back before it get the data
-        if (_fftAnalyser.bufferFilled()) {
-            _noise = _fftAnalyser.getReading();
-            if (!_bufferTerminated) {
-                _fftAnalyser.terminateBuffer();
-                _bufferTerminated = true;            
-            }
+        if(_bufferTerminated){
+            _fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType);
+            _bufferTerminated = false;            
         }
+
+        // Modify it so that it doesn't come back before it get the data
+
+        _noise = _fftAnalyser.getReading();
+
+        if (_noise>0){
+            _bufferTerminated = true;    
+        }
+
         return _noise;
     } 
 
@@ -80,6 +122,24 @@ private:
     int _sampleRate;
     bool _bufferTerminated = true;
     WeightingType _weightingType;
+    NoiseState _noiseState = INITIAL;
+
+
+    uint32_t FreeRamMem() {
+        uint32_t stackTop;
+        uint32_t heapTop;
+
+        // Current position of the stack
+        stackTop = (uint32_t) &stackTop;
+
+        // Current position of heap
+        void* hTop = malloc(1);
+        heapTop = (uint32_t) hTop;
+        free(hTop);
+
+        // The difference is the free, available ram
+        return stackTop - heapTop;
+    }
 };
 
 NoiseClass noisedBA(sampleRate, bufferSize, fftSize, A_WEIGHTING);
@@ -118,18 +178,14 @@ void setup() {
     delay(2000);
 
     // SerialUSB.println(FreeRamMem());
-    noisedBA.init();
-    SerialUSB.println(FreeRamMem());
 }
 
 void loop() {
     
-    // SerialUSB.println(FreeRamMem());
     float resultdBA = noisedBA.getReading();
 
     if (resultdBA) {
         SerialUSB.println(resultdBA);
-        SerialUSB.println(FreeRamMem());
         digitalWrite(GREEN, LOW);
         delay(20);
         digitalWrite(GREEN, HIGH);

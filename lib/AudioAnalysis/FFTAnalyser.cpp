@@ -19,22 +19,8 @@ FFTAnalyser::FFTAnalyser() :
 {
 }
 
-FFTAnalyser::~FFTAnalyser() {
-  if (_sampleBuffer){
-    free(_sampleBuffer);
-  }
-
-  if (_fftBuffer) {
-    free(_fftBuffer);
-  }
-
-  if (_spectrumBuffer) {
-    free(_spectrumBuffer);
-  }
-
-  if (_spectrumBufferDB) {
-    free(_spectrumBufferDB);
-  }
+FFTAnalyser::~FFTAnalyser() 
+{
 }
 
 bool FFTAnalyser::initI2S(int sampleRate, int bitsPerSample){
@@ -43,11 +29,6 @@ bool FFTAnalyser::initI2S(int sampleRate, int bitsPerSample){
 
   //Initialise I2S
   bool I2SbeginOK = begin(_sampleRate, _bitsPerSample);
-  SerialUSB.println("I2S begin");
-  SerialUSB.println(I2SbeginOK);
-  SerialUSB.println(_sampleRate);
-  SerialUSB.println(_bitsPerSample);
-  SerialUSB.println("**");
 
   return I2SbeginOK;
 }
@@ -60,54 +41,42 @@ bool FFTAnalyser::initFFT(int fftSize){
 }
 
 bool FFTAnalyser::allocateBuffer(int fftSize, int bufferSize, WeightingType weightingType){
-  // SerialUSB.println("allocateBuffer");
 
   _fftSize = fftSize;
   _bufferSize = bufferSize;
   _weightingType = weightingType;
 
-  //Allocate time buffer
-  _sampleBuffer = calloc(_bufferSize, sizeof(q31_t));
-  _fftBuffer = calloc(_fftSize, sizeof(q31_t));
+  // //Allocate time buffer
+  // _sampleBuffer = calloc(_bufferSize, sizeof(q31_t));
+  // _fftBuffer = calloc(_fftSize, sizeof(q31_t));
   
-  //Allocate frequency buffers
-  _spectrumBuffer = calloc(_fftSize/2, sizeof(q31_t));
-  _spectrumBufferDB = calloc(_fftSize/2, sizeof(q31_t));
+  // //Allocate frequency buffers
+  // _spectrumBuffer = calloc(_fftSize/2, sizeof(q31_t));
+  // _spectrumBufferDB = calloc(_fftSize/2, sizeof(q31_t));
 
-  //Free all buffers in case of bad allocation
-  if (_sampleBuffer == NULL || _fftBuffer == NULL || _spectrumBuffer == NULL || _spectrumBufferDB == NULL) {
+  _sampleBuffer = new q31_t [_bufferSize];
+  _fftBuffer = new q31_t [_fftSize];
+  _spectrumBuffer = new q31_t [_fftSize/2];
+  _spectrumBufferDB = new q31_t [_fftSize/2];
 
-    if (_sampleBuffer) {
-      free(_sampleBuffer);
-      _sampleBuffer = NULL;
-    }
+  //Free all buffers in case of bad allocation 
+  // and return false
 
-    if (_fftBuffer) {
-      free(_fftBuffer);
-      _fftBuffer = NULL;
-    }
-
-    if (_spectrumBuffer) {
-      free(_spectrumBuffer);
-      _spectrumBuffer = NULL;
-    }
-
-    if (_spectrumBufferDB) {
-      free(_spectrumBufferDB);
-      _spectrumBufferDB = NULL;
-    }
-    
-    return false;
-  }
   return true;
 }
 
 bool FFTAnalyser::terminateBuffer(){
   // SerialUSB.println("terminateBuffer");
-  free(_sampleBuffer);
-  free(_fftBuffer);
-  free(_spectrumBuffer);
-  free(_spectrumBufferDB);
+  // free(_sampleBuffer);
+  // free(_fftBuffer);
+  // free(_spectrumBuffer);
+  // free(_spectrumBufferDB);
+  delete[] _sampleBuffer;
+  delete[] _fftBuffer;
+  delete[] _spectrumBuffer;
+  delete[] _spectrumBufferDB;
+
+  return true;
 }
 
 bool FFTAnalyser::bufferFilled() {
@@ -117,7 +86,6 @@ bool FFTAnalyser::bufferFilled() {
 
   while(_bufferIndex < _bufferSize) {
     _sample = I2S.read();
-    // SerialUSB.println(_sample);
 
     if (_sample) {
       _buff[_bufferIndex] = _sample>>7;
@@ -170,31 +138,37 @@ float FFTAnalyser::getReading(int spectrum[]){
 
 float FFTAnalyser::getReading(){
 
-  // Apply Hann window and downscale by CONST_FACTOR
-  scalingandwindow(_sampleBuffer, _bufferSize);
+  if (bufferFilled()) {
 
-  // fft
-  fft(_sampleBuffer, _spectrumBuffer, _fftSize);
+    // Apply Hann window and downscale by CONST_FACTOR
+    scalingandwindow(_sampleBuffer, _bufferSize);
 
-  // Equalise
-  equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
+    // fft
+    fft(_sampleBuffer, _spectrumBuffer, _fftSize);
 
-  // Weighting
-  switch (_weightingType) {
+    // Equalise
+    equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
 
-    case A_WEIGHTING:
-    case C_WEIGHTING:
-      weighting(_spectrumBuffer, _fftSize/2);
-      break;
-    case Z_WEIGHTING:
-      break;
+    // Weighting
+    switch (_weightingType) {
+
+      case A_WEIGHTING:
+      case C_WEIGHTING:
+        weighting(_spectrumBuffer, _fftSize/2);
+        break;
+      case Z_WEIGHTING:
+        break;
+    }
+
+    _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
+    _rmsSpecB = (float) (FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB)));
+    // SerialUSB.println(micros()-time_after);
+    
+    _bufferIndex = 0;
+
+  } else {
+    _rmsSpecB = 0;
   }
-
-  _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
-  _rmsSpecB = (float) (FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB)));
-  // SerialUSB.println(micros()-time_after);
-  
-  _bufferIndex = 0;
 
   return _rmsSpecB;
 }

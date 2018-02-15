@@ -35,7 +35,7 @@ class TestClassDynamic
         }
 
         void end(){
-            free (_testBuffer);
+            free(_testBuffer);
         }
 
     private:
