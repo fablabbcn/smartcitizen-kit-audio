@@ -3,6 +3,8 @@
 #define ARM_MATH_CM0PLUS
 #include <arm_math.h>
 
+// MOVE TO PROGMEM
+
 ///// MICROPHONE PROPERTIES (INVENSENSE)
 
 const int BIT_LENGTH = 24;

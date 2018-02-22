@@ -28,6 +28,7 @@ const int sampleRate = 44100;
 int spectrum[fftSize/2];
 float resultdB = 0;
 int timer = 0; 
+float resultdBA = 0;
 
 class NoiseClass{
 
@@ -49,9 +50,9 @@ public:
 
     enum NoiseState{
         INITIAL,
-        READINGBUFFER,
-        READINGDONE,
-        ALLOCATINGBUFFER
+        ALLOCATINGBUFFER,
+        GETTINGBUFFER,
+        READINGDONE
     };
 
     bool init(){
@@ -67,10 +68,16 @@ public:
     }
 
     float getReading(){
-        float _noise = 0;
+
+        return _noiseResult;
+    } 
+
+    bool resultReady() {
 
         switch (_noiseState) {
             case INITIAL:
+                _noiseResultReady = false;
+                _noiseResult = 0;
 
                 if (init()){
                     _noiseState = ALLOCATINGBUFFER;
@@ -78,32 +85,39 @@ public:
                 break;
 
             case ALLOCATINGBUFFER:
-
-                if(_fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType)){
-                    _noiseState = READINGBUFFER;
+                _noiseResultReady = false;
+                _noiseResult = 0;
+           
+                if (_fftAnalyser.allocateBuffer(_bufferSize, _fftSize, _weightingType)){
+                    _noiseState = GETTINGBUFFER;
                 }
                 break;
 
-            case READINGBUFFER:
+            case GETTINGBUFFER:
+                _noiseResultReady = false;
+                _noiseResult = _fftAnalyser.getReading();
 
-                _noise = _fftAnalyser.getReading();
-                if (_noise>0){
+                if (_noiseResult>0){
+                    _noiseResultReady = true;
                     _noiseState = READINGDONE;
                 }
+
                 break;
 
             case READINGDONE:
-
+                _noiseResultReady = false;
+                _noiseResult = 0;
                 if(_fftAnalyser.terminateBuffer()){
                     _noiseState = ALLOCATINGBUFFER;
                 }
                 break;
         }
-
-        return _noise;
-    } 
+        return _noiseResultReady;
+    }
 
 private:
+    bool _noiseResultReady = false;
+    float _noiseResult;
     int _bufferSize;
     int _fftSize;
     int _sampleRate;
@@ -111,22 +125,6 @@ private:
     WeightingType _weightingType;
     NoiseState _noiseState = INITIAL;
 
-
-    uint32_t FreeRamMem() {
-        uint32_t stackTop;
-        uint32_t heapTop;
-
-        // Current position of the stack
-        stackTop = (uint32_t) &stackTop;
-
-        // Current position of heap
-        void* hTop = malloc(1);
-        heapTop = (uint32_t) hTop;
-        free(hTop);
-
-        // The difference is the free, available ram
-        return stackTop - heapTop;
-    }
 };
 
 NoiseClass noisedBA(sampleRate, bufferSize, fftSize, A_WEIGHTING);
@@ -169,15 +167,15 @@ void setup() {
 
 void loop() {
     
-    float resultdBA = noisedBA.getReading();
-
-    if (resultdBA) {
+    if (noisedBA.resultReady()) {
+        resultdBA = noisedBA.getReading();
         SerialUSB.println(resultdBA);
         digitalWrite(GREEN, LOW);
         delay(20);
         digitalWrite(GREEN, HIGH);
         delay(20);
     }
+    
 
     // SerialUSB.println(FreeRamMem());
 

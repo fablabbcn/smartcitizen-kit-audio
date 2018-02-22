@@ -76,6 +76,14 @@ bool FFTAnalyser::terminateBuffer(){
   delete[] _spectrumBuffer;
   delete[] _spectrumBufferDB;
 
+  _sampleBuffer = NULL;
+  _fftBuffer = NULL;
+  _spectrumBuffer = NULL;
+  _spectrumBufferDB = NULL;
+
+  // Rule: Set deleted pointers to 0 (or nullptr in C++11) 
+  // unless they are going out of scope immediately afterward.
+
   return true;
 }
 
@@ -100,39 +108,43 @@ bool FFTAnalyser::bufferFilled() {
 
 float FFTAnalyser::getReading(int spectrum[]){
 
-  // Downscale the sample buffer for proper functioning
-  scalingandwindow(_sampleBuffer, _bufferSize);
-  // SerialUSB.println(micros()-time_after);
+  if (bufferFilled()){
+    // Downscale the sample buffer for proper functioning
+    scalingandwindow(_sampleBuffer, _bufferSize);
+    // SerialUSB.println(micros()-time_after);
 
-  // fft
-  fft(_sampleBuffer, _spectrumBuffer, _fftSize);
+    // fft
+    fft(_sampleBuffer, _spectrumBuffer, _fftSize);
 
-  // Equalise
-  equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
-  // SerialUSB.println(micros()-time_after);
+    // Equalise
+    equalising(_spectrumBuffer, _fftSize/2, _sampleRate);
+    // SerialUSB.println(micros()-time_after);
 
-  // Weighting
-  switch (_weightingType) {
+    // Weighting
+    switch (_weightingType) {
 
-    case A_WEIGHTING:
-    case C_WEIGHTING:
-      weighting(_spectrumBuffer, _fftSize/2);
-      _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
-      convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
-      memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
-      break;
+      case A_WEIGHTING:
+      case C_WEIGHTING:
+        weighting(_spectrumBuffer, _fftSize/2);
+        _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR); 
+        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
+        memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
+        break;
 
-    case Z_WEIGHTING:
-      _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
-      convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
-      memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
-      break;
+      case Z_WEIGHTING:
+        _rmsSpecB = rms(_spectrumBuffer, _fftSize/2, 2, CONST_FACTOR);
+        convert2DB(_spectrumBuffer, _spectrumBufferDB, _fftSize/2,CONST_FACTOR);
+        memcpy(spectrum, _spectrumBufferDB, sizeof(int) * _fftSize/2);
+        break;
+    }
+
+    _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
+    // SerialUSB.println(micros()-time_after);
+
+    _bufferIndex = 0;
+  } else {
+    _rmsSpecB = 0;
   }
-
-  _rmsSpecB = FULL_SCALE_DBSPL-(FULL_SCALE_DBFS-20*log10(sqrt(2)*_rmsSpecB));
-  // SerialUSB.println(micros()-time_after);
-
-  _bufferIndex = 0;
   return _rmsSpecB;
 }
 
